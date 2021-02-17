@@ -19,8 +19,10 @@ auth.set_access_token(access_key, access_secret)
 favoCountPage: int = 1
 favoMaxCount: int = 0
 toDayFavo: int = 0
+getDays: int = 0
 
-def favoGet(contPage):
+#いいね取得するやつ
+def favoGet(contPage, selectDataS): 
     global toDayFavo
     favoCount: int = 0
 
@@ -32,16 +34,13 @@ def favoGet(contPage):
         conn = mysql.connector.connect(
             host='0.0.0.0',
             port='3306',
-            user='user',
+            user='usr',
             password='password',
             database='schema',
             charset='utf8mb4'
         )
         
         cur = conn.cursor(buffered=True)
-
-        cur.execute("SELECT * FROM TWITTER_FAVO_TIMELINE where got_at=(select max(got_at) from TWITTER_FAVO_TIMELINE);")
-        selectData = cur.fetchall()
     
         tweets = api.favorites("FIN4LE_P", count=200, page=favoCountPage)
     
@@ -49,8 +48,8 @@ def favoGet(contPage):
 
             favoCount += 1
 
-            for selectDataOne in range(len(selectData)):
-                if str(selectData[selectDataOne][0]) == str(tweet.id) and str(selectData[selectDataOne][1]) == str(tweet.user.screen_name):
+            for selectDataOne in range(len(selectDataS)):
+                if str(selectDataS[selectDataOne][0]) == str(tweet.id) and str(selectDataS[selectDataOne][1]) == str(tweet.user.screen_name):
                     favoCount = 999
                     break
             else:
@@ -88,13 +87,53 @@ def favoGet(contPage):
         cur.close()
         conn.close()
 
+#メイン処理スタート
 print("start_favo_count")
-favoMaxCount = favoGet(favoCountPage)
+
+#いつのいいねを取得するかを取得するやつ
+try:
+
+    # DBcon
+    conn = mysql.connector.connect(
+        host='0.0.0.0',
+        port='3306',
+        user='usr',
+        password='password',
+        database='schema',
+        charset='utf8mb4'
+    )
+    
+    cur = conn.cursor(buffered=True)
+
+    while True:
+        getDays += 1
+     
+        selectDayLow = datetime.datetime.strptime((datetime.date.today().strftime("%Y/%m/%d") + " 00:00:00"), "%Y/%m/%d %H:%M:%S") - datetime.timedelta(days=getDays)
+        selectDayHigh = datetime.datetime.strptime((datetime.date.today().strftime("%Y/%m/%d") + " 23:59:59"), "%Y/%m/%d %H:%M:%S") - datetime.timedelta(days=getDays)
+     
+        cur.execute("SELECT * FROM TWITTER_FAVO_TIMELINE where got_at between %s and %s",(selectDayLow, selectDayHigh))
+        selectData = cur.fetchall()
+     
+        if len(selectData) != 0:
+            break
+
+except mysql.connector.Error as e:
+    print("Error code:", e.errno)        # error number
+    print("SQLSTATE value:", e.sqlstate)  # SQLSTATE value
+    print("Error message:", e.msg)       # error message
+    print("Error:", e)                   # errno, sqlstate, msg values
+    s = str(e)
+    print("Error:", s)                   # errno, sqlstate, msg values
+finally:
+    cur.close()
+    conn.close()
+
+favoMaxCount = favoGet(favoCountPage, selectData)
 
 while True:
     if favoMaxCount != 999:
         favoCountPage += 1
-        favoMaxCount = favoGet(favoCountPage)
+        favoMaxCount = favoGet(favoCountPage, selectData)
     else:
         break
 
